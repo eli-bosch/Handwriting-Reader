@@ -1,0 +1,5 @@
+app.exe
+image_processing.o
+main.o
+mlp.o
+-p

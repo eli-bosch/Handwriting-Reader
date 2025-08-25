@@ -1,0 +1,6 @@
+Setup
+
+pacman -Syu
+pacman -S --needed mingw-w64-x86_64-toolchain mingw-w64-x86_64-opencv mingw-w64-x86_64-pkgconf
+
+g++ main.cpp -o app $(pkg-config --cflags --libs opencv4)
