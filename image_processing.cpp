@@ -24,3 +24,4 @@ std::vector<float> Image_Processing::processImage(const std::string& path, bool 
     std::vector<float> vec(flat.begin<float>(), flat.end<float>());
     return vec;
 }
+
