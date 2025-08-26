@@ -40,7 +40,7 @@ class MLP {
         static float cross_entropy(const std::vector<float>& p, int label);
 
         //Backpropagation
-        float backward(const std::vector<float> & x, int labels);
+        float backward(const std::vector<float> & x, int label);
 };
 
 #endif

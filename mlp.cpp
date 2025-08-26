@@ -75,35 +75,7 @@ std::vector<float> MLP::forward(const std::vector<float>& input) {
 float MLP::train_sample(const std::vector<float>& x, int label) { //Train with single input
     std::vector<float> output = forward(x);
     float loss = cross_entropy(output, label); //Consolidate with backward doing all the backward propogation
-    float delta_out[10];
-
-    for(int o = 0; o < 10; o++) delta_out[o] = output[o];
-    delta_out[label] -= 1.f;
-
-    float delta_h[128] = {0.f};
-    for(int o = 0; o < 10; o++) {
-        bias_output[o] -= learningRate * delta_out[o];
-
-        auto& W2o = weights_hidden_output[o]; // 128
-        for(int h = 0; h < 128; h++) {
-            delta_h[h] += W2o[h] * delta_out[o];
-            W2o[h] -= learningRate * (delta_out[o] * hidden[h]);
-        }
-    }
-
-    for(int h = 0; h < 128; h++) {
-        delta_h[h] *= tanhDerivative(hidden[h]);
-    }
-
-    for(int h = 0; h < 128; h++) {
-        bias_hidden[h] -= learningRate * delta_h[h];
-
-        auto& W1h = weights_input_hidden[h]; // 784
-        for(int i = 0; i < 784; i++) {
-            W1h[i] -= learningRate * (delta_h[h] * x[i]);
-        }
-    }
-
+    backward(x, label);
     return loss;
 }
 
@@ -117,8 +89,16 @@ void MLP::train(const std::vector<std::vector<float>>& X, const std::vector<int>
         std::random_device rd;
         std::mt19937 g(rd());
         std::shuffle(dataset.begin(), dataset.end(), g);
+        
 
+        float error = 0.f;
+        for(const auto& n : dataset) {
+            error += train_sample(n.first, n.second);
+        }
 
+        if(epoch % 1000 == 0) {
+            std::cout << "Epoch " << epoch << ": total error = " << error << std::endl;
+        }
     }
 }
 
@@ -167,7 +147,33 @@ float MLP::cross_entropy(const std::vector<float>& p, int label) {
 }
 
 //Backpropagation
-float MLP::backward(const std::vector<float>& x, int labels) {
-    //Take the backpropagation from train_sample
+float MLP::backward(const std::vector<float>& x, int label) {
+    float delta_out[10];
 
+    for(int o = 0; o < 10; o++) delta_out[o] = output[o];
+    delta_out[label] -= 1.f;
+
+    float delta_h[128] = {0.f};
+    for(int o = 0; o < 10; o++) {
+        bias_output[o] -= learningRate * delta_out[o];
+
+        auto& W2o = weights_hidden_output[o]; // 128
+        for(int h = 0; h < 128; h++) {
+            delta_h[h] += W2o[h] * delta_out[o];
+            W2o[h] -= learningRate * (delta_out[o] * hidden[h]);
+        }
+    }
+
+    for(int h = 0; h < 128; h++) {
+        delta_h[h] *= tanhDerivative(hidden[h]);
+    }
+
+    for(int h = 0; h < 128; h++) {
+        bias_hidden[h] -= learningRate * delta_h[h];
+
+        auto& W1h = weights_input_hidden[h]; // 784
+        for(int i = 0; i < 784; i++) {
+            W1h[i] -= learningRate * (delta_h[h] * x[i]);
+        }
+    }
 }
