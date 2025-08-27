@@ -46,7 +46,7 @@ std::vector<float> MLP::forward(const std::vector<float>& input) {
         float sum = bias_hidden[i];
         const auto& weights_hidden = weights_input_hidden[i];
         for(int j = 0; j < 784; j++) {
-            sum += weights_hidden[j] * input[i];
+            sum += weights_hidden[j] * input[j];
         }
 
         hidden[i] = tanhActivation(sum);
@@ -105,28 +105,26 @@ void MLP::train(const std::vector<std::vector<float>>& X, const std::vector<int>
 std::pair<int, float> MLP::predict(const std::vector<float>& input) { //Returns digit and confidence
     const auto& output = forward(input);
     int digit = 0;
-    float prob = input[0];
+    float prob = output[0];
 
     for(int i = 1; i < 10; i++) {
-        if(output[digit] < output[i]) {digit = i; prob = input[i];}
+        if(output[digit] < output[i]) {digit = i; prob = output[i];}
     }
 
     return {digit, prob};
 }
 
 //Helpers
-void MLP::xavier_init(std::vector<std::vector<float>>& W, int fan_out, int fan_in) { //Optimizes random weight range for better training
-    //Initialize radnom seed in range of fan
-    int limit = std::sqrt(6 / (fan_in + fan_out));
-    std::mt19937 rng(static_cast<uint32_t>(std::time(nullptr)));
-    std::uniform_real_distribution<float> dist(-limit, limit);
+void MLP::xavier_init(std::vector<std::vector<float>>& W, int fan_out, int fan_in) {
+    float limit = std::sqrt(6.0f / static_cast<float>(fan_in + fan_out));  
+    std::mt19937 rng(42u); // fixed seed = reproducible training
+    std::uniform_real_distribution<float> dist(-limit, limit);            
 
-    for(int r = 0; r < fan_out; r++) {
-        for(int c = 0; c < fan_in; c++) {
-            W[r][c] = dist(rng); 
-        }
-    }
+    for (int r = 0; r < fan_out; ++r)
+        for (int c = 0; c < fan_in; ++c)
+            W[r][c] = dist(rng);
 }
+
 
 void MLP::softmax_inplace(std::vector<float>& z) { //Coverts vector to stable probability distribution
     float m = *std::max_element(z.begin(), z.end());
@@ -147,7 +145,7 @@ float MLP::cross_entropy(const std::vector<float>& p, int label) {
 }
 
 //Backpropagation
-float MLP::backward(const std::vector<float>& x, int label) {
+void MLP::backward(const std::vector<float>& x, int label) {
     float delta_out[10];
 
     for(int o = 0; o < 10; o++) delta_out[o] = output[o];

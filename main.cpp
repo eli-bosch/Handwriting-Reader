@@ -6,7 +6,7 @@ using namespace std;
 
 int main() {
 
-    std::cout << "WOrk" << std::endl;
+    
 
     return 0;
 }
