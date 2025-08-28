@@ -2,12 +2,21 @@
 
 #include <cmath>
 #include <cstdlib>
-#include <ctime>
 #include <random>
 #include <algorithm>
 #include <iostream>
+#include <fstream>
+#include <stdexcept>
+#include <nlohmann/json.hpp>
+
+using json = nlohmann::json;
+
+MLP::MLP() {
+    this->unmarshal();
+}
 
 MLP::MLP(float learningRate) {
+    std::cout << "MLP CONSTRUCTED" << std::endl;
 
     this->learningRate = learningRate;
 
@@ -80,14 +89,18 @@ float MLP::train_sample(const std::vector<float>& x, int label) { //Train with s
 }
 
 void MLP::train(const std::vector<std::vector<float>>& X, const std::vector<int>& labels, int epochs) { //Actual training driver
+    std::cout << "TRAINING BEGINS" << std::endl;
+    
     std::vector<std::pair<std::vector<float>, int>> dataset;
     for(int i = 0; i < X.size(); i++) {
         dataset.push_back({X[i], labels[i]});
     }
 
+    std::random_device rd;
+    std::mt19937 g(rd());
+
     for(int epoch = 0; epoch < epochs; epoch++) {
-        std::random_device rd;
-        std::mt19937 g(rd());
+        
         std::shuffle(dataset.begin(), dataset.end(), g);
         
 
@@ -100,15 +113,19 @@ void MLP::train(const std::vector<std::vector<float>>& X, const std::vector<int>
             std::cout << "Epoch " << epoch << ": total error = " << error << std::endl;
         }
     }
+
+    this->marshal();
 }
 
 std::pair<int, float> MLP::predict(const std::vector<float>& input) { //Returns digit and confidence
-    const auto& output = forward(input);
+    std::cout << "PREDICTION BEGINGS" << std::endl;
+
+    auto predict = forward(input);
     int digit = 0;
     float prob = output[0];
 
     for(int i = 1; i < 10; i++) {
-        if(output[digit] < output[i]) {digit = i; prob = output[i];}
+        if(predict[digit] < predict[i]) {digit = i; prob = predict[i];}
     }
 
     return {digit, prob};
@@ -173,5 +190,91 @@ void MLP::backward(const std::vector<float>& x, int label) {
         for(int i = 0; i < 784; i++) {
             W1h[i] -= learningRate * (delta_h[h] * x[i]);
         }
+    }
+}
+
+//JSON
+
+void MLP::marshal() {
+    static constexpr const char* kPath = "mlp_model.json";
+
+    // Infer dims from current containers (should be 784-128-10 in your code)
+    const std::size_t hidden_dim = weights_input_hidden.size();
+    const std::size_t input_dim  = hidden_dim ? weights_input_hidden[0].size() : 784;
+    const std::size_t output_dim = weights_hidden_output.size();
+
+    // Basic structural check before saving
+    if (hidden_dim != 128 || input_dim != 784 || output_dim != 10)
+        std::cerr << "[marshal] Warning: dims not 784-128-10 ("
+                  << input_dim << "-" << hidden_dim << "-" << output_dim << ")\n";
+
+    json j;
+    j["version"] = 1;
+    j["arch"]    = { {"input", input_dim}, {"hidden", hidden_dim}, {"output", output_dim} };
+    j["hyper"]   = { {"learning_rate", learningRate}, {"activation", "tanh"} };
+
+    // nlohmann/json can serialize std::vector and std::vector<std::vector<float>> directly
+    j["params"]["W1"] = weights_input_hidden;   // [hidden][input]
+    j["params"]["b1"] = bias_hidden;            // [hidden]
+    j["params"]["W2"] = weights_hidden_output;  // [output][hidden]
+    j["params"]["b2"] = bias_output;            // [output]
+
+    std::ofstream out(kPath);
+    if (!out) throw std::runtime_error(std::string("Failed to open for write: ") + kPath);
+    out << j.dump(2) << '\n';  // pretty-printed; use dump() for compact
+}
+
+void MLP::unmarshal() {
+    static constexpr const char* kPath = "mlp_model.json";
+
+    std::ifstream in(kPath);
+    if (!in) throw std::runtime_error(std::string("Failed to open for read: ") + kPath);
+
+    json j;
+    in >> j;
+
+    // Validate header
+    if (!j.contains("arch") || !j.contains("params"))
+        throw std::runtime_error("Model JSON missing 'arch' or 'params'");
+
+    const int in_dim  = j.at("arch").at("input").get<int>();
+    const int hid_dim = j.at("arch").at("hidden").get<int>();
+    const int out_dim = j.at("arch").at("output").get<int>();
+
+    // Code hardcodes 784-128-10
+    if (in_dim != 784 || hid_dim != 128 || out_dim != 10)
+        throw std::runtime_error("Model dims mismatch (expected 784-128-10)");
+
+    // Pull parameters
+    auto W1 = j.at("params").at("W1").get<std::vector<std::vector<float>>>();
+    auto b1 = j.at("params").at("b1").get<std::vector<float>>();
+    auto W2 = j.at("params").at("W2").get<std::vector<std::vector<float>>>();
+    auto b2 = j.at("params").at("b2").get<std::vector<float>>();
+
+    // Shape checks
+    if (static_cast<int>(W1.size()) != hid_dim)  throw std::runtime_error("W1 rows != hidden");
+    for (const auto& row : W1)
+        if (static_cast<int>(row.size()) != in_dim) throw std::runtime_error("W1 row size != input");
+
+    if (static_cast<int>(W2.size()) != out_dim)  throw std::runtime_error("W2 rows != output");
+    for (const auto& row : W2)
+        if (static_cast<int>(row.size()) != hid_dim) throw std::runtime_error("W2 row size != hidden");
+
+    if (static_cast<int>(b1.size()) != hid_dim)  throw std::runtime_error("b1 size != hidden");
+    if (static_cast<int>(b2.size()) != out_dim)  throw std::runtime_error("b2 size != output");
+
+    // Commit into the model
+    weights_input_hidden = std::move(W1);
+    bias_hidden          = std::move(b1);
+    weights_hidden_output= std::move(W2);
+    bias_output          = std::move(b2);
+
+    // Make sure runtime buffers exist with the right sizes
+    hidden.assign(hid_dim, 0.f);
+    output.assign(out_dim, 0.f);
+
+    // Optional: restore LR if present
+    if (j.contains("hyper") && j["hyper"].contains("learning_rate")) {
+        learningRate = j["hyper"]["learning_rate"].get<float>();
     }
 }

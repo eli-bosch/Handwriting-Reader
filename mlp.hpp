@@ -5,6 +5,7 @@
 
 class MLP {
     public:
+        explicit MLP();
         explicit MLP(float learningRate);
 
         //Activations
@@ -41,6 +42,10 @@ class MLP {
 
         //Backpropagation
         void backward(const std::vector<float> & x, int label);
+
+        //JSON
+        void marshal();
+        void unmarshal();
 };
 
 #endif
