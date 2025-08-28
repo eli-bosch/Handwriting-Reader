@@ -13,15 +13,20 @@ class MLP {
         static float tanhDerivative(float y);
 
         //Inference
-        std::vector<float> forward(const std::vector<float>& input);
+        void forward(const std::vector<float>& input);
         std::pair<int, float> predict(const std::vector<float>& input);
 
         //Training
-        float train_sample(const std::vector<float>& x, int label);
+        inline float train_sample(const std::vector<float>& x, int label);
         void train(const std::vector<std::vector<float>>& X, const std::vector<int>& labels, int epochs);
 
     private:
         float learningRate;
+
+        //Layer sizes
+        int input_layer_size = 784; //28*28
+        int hidden_layer_size = 128;
+        int output_layer_size = 10;
 
         //Layer buffers
         std::vector<float> hidden; // 128

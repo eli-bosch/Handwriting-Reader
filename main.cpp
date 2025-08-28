@@ -23,6 +23,12 @@ void training_data(vector<vector<float>>& data, vector<int>& labels, int data_am
             if (img.size() != W) {
                 std::cerr << "BAD SIZE at row " << row << " got "
                           << img.size() << " expected " << W << "\n";
+
+                if(row != 0) {
+                    data[row] = data[row - 1];
+                    labels[row] = i;
+                    continue;
+                }
             }
             data[row] = std::move(img);
             labels[row] = i;
@@ -30,26 +36,35 @@ void training_data(vector<vector<float>>& data, vector<int>& labels, int data_am
     }
 }
 
-int main() {
-    cout << "MAIN START" << endl;
-
-    //MLP mlp(0.01);
-    MLP mlp;
+void train() {
+    MLP mlp(0.01);
 
     vector<vector<float>> data;
     vector<int> labels;
-    int data_amt = 100;
-    int epochs = 5000;
+    int data_amt = 1000;
+    int epochs = 3000;
 
-    //training_data(data, labels, data_amt);
+    cout << "MAIN START, data_amt = " << data_amt*10 << ", epochs = " << epochs << endl;
+
+    training_data(data, labels, data_amt);
     
-    //mlp.train(data, labels, epochs);
+    mlp.train(data, labels, epochs);
+}
+
+void predict() {
+    MLP mlp;
     Image_Processing ip;
-    string path = "testing/9_0_test" + ip.raster;
+    string path = "testing/9_3" + ip.raster;
 
     auto prediction = mlp.predict(ip.processImage(path, true));
 
     cout << "The MLP predicts an " << prediction.first << " with " << prediction.second << " confidence" << endl;
+}
+
+int main() {
+   
+    //train();
+    predict();
 
     return 0;
 }

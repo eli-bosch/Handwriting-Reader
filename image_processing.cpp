@@ -5,10 +5,11 @@
 #include <opencv2/imgcodecs.hpp>
 
 #include <stdexcept>
+#include <iostream>
 
 std::vector<float> Image_Processing::processImage(const std::string& path, bool invert) {
     cv::Mat img = cv::imread(path, cv::IMREAD_GRAYSCALE);
-    if (img.empty()) throw std::runtime_error("Failed to load: " + path);
+    if (img.empty()) {std::cout << "The file " << path << " doesn't exist.\n"; return {};}
 
     cv::Mat resized;
     cv::resize(img, resized, cv::Size(28, 28), 0, 0, cv::INTER_AREA);

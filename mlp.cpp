@@ -21,20 +21,20 @@ MLP::MLP(float learningRate) {
     this->learningRate = learningRate;
 
     //Buffers
-    hidden.resize(128, 0.f);
-    output.resize(10, 0.f);
+    hidden.resize(hidden_layer_size, 0.f);
+    output.resize(output_layer_size, 0.f);
 
     //Weights
-    weights_input_hidden.resize(128, std::vector<float>(784));
-    weights_hidden_output.resize(10, std::vector<float>(128));
+    weights_input_hidden.resize(hidden_layer_size, std::vector<float>(input_layer_size));
+    weights_hidden_output.resize(output_layer_size, std::vector<float>(hidden_layer_size));
 
     //Randomize Weights
-    xavier_init(weights_input_hidden, 128, 784);
-    xavier_init(weights_hidden_output, 10, 128);
+    xavier_init(weights_input_hidden, hidden_layer_size, input_layer_size);
+    xavier_init(weights_hidden_output, output_layer_size, hidden_layer_size);
 
     //Bias
-    bias_hidden.resize(128, 0.f);
-    bias_output.resize(10, 0.f);
+    bias_hidden.resize(hidden_layer_size, 0.f);
+    bias_output.resize(output_layer_size, 0.f);
 }
 
 //Activations
@@ -47,14 +47,14 @@ float MLP::tanhDerivative(float y) {
 }
 
 //Inference
-std::vector<float> MLP::forward(const std::vector<float>& input) {
+void MLP::forward(const std::vector<float>& input) {
     std::fill(hidden.begin(), hidden.end(), 0.f);
 
     //Compute hidden layer activations
-    for(int i = 0; i < 128; i++) {
+    for(int i = 0; i < hidden_layer_size; i++) {
         float sum = bias_hidden[i];
         const auto& weights_hidden = weights_input_hidden[i];
-        for(int j = 0; j < 784; j++) {
+        for(int j = 0; j < input_layer_size; j++) {
             sum += weights_hidden[j] * input[j];
         }
 
@@ -64,10 +64,10 @@ std::vector<float> MLP::forward(const std::vector<float>& input) {
     std::fill(output.begin(), output.end(), 0.f);
 
     //Compute output layer activations
-    for(int i = 0; i < 10; i++) {
+    for(int i = 0; i < output_layer_size; i++) {
         float output_sum = bias_output[i];
         const auto& weights_output = weights_hidden_output[i];
-        for(int j = 0; j < 128; j++) {
+        for(int j = 0; j < hidden_layer_size; j++) {
             output_sum += weights_output[j] * hidden[j];
         }
 
@@ -75,14 +75,12 @@ std::vector<float> MLP::forward(const std::vector<float>& input) {
     }
 
     softmax_inplace(output);
-
-    return output;
 }
 
 //Training
 
-float MLP::train_sample(const std::vector<float>& x, int label) { //Train with single input
-    std::vector<float> output = forward(x);
+inline float MLP::train_sample(const std::vector<float>& x, int label) { //Train with single input
+    forward(x);
     float loss = cross_entropy(output, label); //Consolidate with backward doing all the backward propogation
     backward(x, label);
     return loss;
@@ -92,7 +90,7 @@ void MLP::train(const std::vector<std::vector<float>>& X, const std::vector<int>
     std::cout << "TRAINING BEGINS" << std::endl;
     
     std::vector<std::pair<std::vector<float>, int>> dataset;
-    for(int i = 0; i < X.size(); i++) {
+    for(int i = 0; i < labels.size(); i++) {
         dataset.push_back({X[i], labels[i]});
     }
 
@@ -109,8 +107,8 @@ void MLP::train(const std::vector<std::vector<float>>& X, const std::vector<int>
             error += train_sample(n.first, n.second);
         }
 
-        if(epoch % 1000 == 0) {
-            std::cout << "Epoch " << epoch << ": total error = " << error << std::endl;
+        if(epoch % 10 == 0) {
+            std::cout << "Epoch " << epoch << ": average error = " << (error / labels.size()) << std::endl;
         }
     }
 
@@ -118,14 +116,15 @@ void MLP::train(const std::vector<std::vector<float>>& X, const std::vector<int>
 }
 
 std::pair<int, float> MLP::predict(const std::vector<float>& input) { //Returns digit and confidence
-    std::cout << "PREDICTION BEGINGS" << std::endl;
+    std::cout << "PREDICTION BEGINS" << std::endl;
 
-    auto predict = forward(input);
+    forward(input);
+
     int digit = 0;
     float prob = output[0];
 
-    for(int i = 1; i < 10; i++) {
-        if(predict[digit] < predict[i]) {digit = i; prob = predict[i];}
+    for(int i = 1; i < output_layer_size; i++) {
+        if(output[digit] < output[i]) {digit = i; prob = output[i];}
     }
 
     return {digit, prob};
@@ -163,31 +162,31 @@ float MLP::cross_entropy(const std::vector<float>& p, int label) {
 
 //Backpropagation
 void MLP::backward(const std::vector<float>& x, int label) {
-    float delta_out[10];
+    float delta_out[output_layer_size];
 
-    for(int o = 0; o < 10; o++) delta_out[o] = output[o];
+    for(int o = 0; o < output_layer_size; o++) delta_out[o] = output[o];
     delta_out[label] -= 1.f;
 
-    float delta_h[128] = {0.f};
-    for(int o = 0; o < 10; o++) {
+    float delta_h[hidden_layer_size] = {0.f};
+    for(int o = 0; o < output_layer_size; o++) {
         bias_output[o] -= learningRate * delta_out[o];
 
         auto& W2o = weights_hidden_output[o]; // 128
-        for(int h = 0; h < 128; h++) {
+        for(int h = 0; h < hidden_layer_size; h++) {
             delta_h[h] += W2o[h] * delta_out[o];
             W2o[h] -= learningRate * (delta_out[o] * hidden[h]);
         }
     }
 
-    for(int h = 0; h < 128; h++) {
+    for(int h = 0; h < hidden_layer_size; h++) {
         delta_h[h] *= tanhDerivative(hidden[h]);
     }
 
-    for(int h = 0; h < 128; h++) {
+    for(int h = 0; h < hidden_layer_size; h++) {
         bias_hidden[h] -= learningRate * delta_h[h];
 
         auto& W1h = weights_input_hidden[h]; // 784
-        for(int i = 0; i < 784; i++) {
+        for(int i = 0; i < input_layer_size; i++) {
             W1h[i] -= learningRate * (delta_h[h] * x[i]);
         }
     }
